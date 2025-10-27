@@ -1,0 +1,88 @@
+import sqlite3
+
+conn = sqlite3.connect('hotel_reservation.db')
+cursor = conn.cursor()
+
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS Rooms (
+    room_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_number TEXT UNIQUE,
+    room_type TEXT,
+    price_per_night REAL,
+    is_available INTEGER DEFAULT 1
+)
+''')
+
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS Reservations (
+    reservation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guest_name TEXT,
+    room_id INTEGER,
+    check_in_date TEXT,
+    check_out_date TEXT,
+    FOREIGN KEY(room_id) REFERENCES Rooms(room_id)
+)
+''')
+
+conn.commit()
+
+def add_room():
+    room_number = input("Enter room number: ")
+    room_type = input("Enter room type (Single/Double): ")
+    price = float(input("Enter price per night: "))
+    try:
+        cursor.execute('INSERT INTO Rooms (room_number, room_type, price_per_night) VALUES (?, ?, ?)',
+                       (room_number, room_type, price))
+        conn.commit()
+        print("Room added.\n")
+    except sqlite3.IntegrityError:
+        print("Room number already exists.\n")
+
+def make_reservation():
+    guest_name = input("Enter guest name: ")
+    room_number = input("Enter room number: ")
+    check_in = input("Enter check-in date (YYYY-MM-DD): ")
+    check_out = input("Enter check-out date (YYYY-MM-DD): ")
+    cursor.execute('SELECT room_id, is_available FROM Rooms WHERE room_number = ?', (room_number,))
+    room = cursor.fetchone()
+    if room and room[1] == 1:
+        room_id = room[0]
+        cursor.execute('INSERT INTO Reservations (guest_name, room_id, check_in_date, check_out_date) VALUES (?, ?, ?, ?)',
+                       (guest_name, room_id, check_in, check_out))
+        cursor.execute('UPDATE Rooms SET is_available = 0 WHERE room_id = ?', (room_id,))
+        conn.commit()
+        print("Reservation successful.\n")
+    else:
+        print("Room not available or does not exist.\n")
+
+def view_reservations():
+    cursor.execute('''
+    SELECT r.reservation_id, r.guest_name, rm.room_number, rm.room_type, r.check_in_date, r.check_out_date
+    FROM Reservations r JOIN Rooms rm ON r.room_id = rm.room_id
+    ''')
+    reservations = cursor.fetchall()
+    if reservations:
+        for res in reservations:
+            print(f"ReservationID: {res[0]}, Guest: {res[1]}, Room: {res[2]} ({res[3]}), Check-in: {res[4]}, Check-out: {res[5]}")
+    else:
+        print("No reservations found.\n")
+
+def main():
+    while True:
+        print("\n1. Add Room\n2. Make Reservation\n3. View Reservations\n4. Exit")
+        choice = input("Select an option: ")
+        if choice == "1":
+            add_room()
+        elif choice == "2":
+            make_reservation()
+        elif choice == "3":
+            view_reservations()
+        elif choice == "4":
+            break
+        else:
+            print("Invalid choice. Try again.")
+
+if __name__ == "__main__":
+    main()
+    conn.close()
+
